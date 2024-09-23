@@ -35,24 +35,45 @@ jobs:
           serviceCredentialsFileContent: ${{ secrets.CREDENTIAL_FILE_CONTENT }}
           groups: testers
           file: android/app/build/outputs/apk/release/app-release.apk
-  build-ios:
-    needs: install-and-test
-    runs-on: macos-latest
+  ios-build:
+    name: iOS Dev Build
+    runs-on: self-hosted
     steps:
-      - uses: actions/checkout@v3
-      - name: Install npm dependencies
-        run: npm install
-      - name: Install CocoaPods
-        run: sudo gem install cocoapods
-      - name: Install Pods
-        run: cd ios && pod install
-      - name: Build iOS Release
-        run: cd ios && xcodebuild -workspace "MyApp.xcworkspace" -scheme "MyApp" -configuration Release -sdk iphoneos -archivePath $PWD/build/MyApp.xcarchive archive
-      - name: Create IPA
-        run: cd ios && xcodebuild -exportArchive -archivePath $PWD/build/MyApp.xcarchive -exportOptionsPlist ExportOptions.plist -exportPath $PWD/build
-      - name: Upload Artifact
-        uses: actions/upload-artifact@v4
+      - name: Show self-hosted machine infomation
+        run: uname -a
+      - name: Cancel previous runs
+        uses: styfle/cancel-workflow-action@0.9.1
+      - name: Checkout repo from dev branch
+        uses: actions/checkout@v3
         with:
-          name: app-release.ipa
-          path: ios/build/MyApp.ipa
-        
+          ref: dev
+      - name: Install npm dependency
+        run: yarn install
+      - name: Cache cocoapods
+        uses: actions/cache@v3
+        with:
+          path: /ios/Pods
+          key: ${{ runner.os }}-pods-${{ hashFiles('**/Podfile.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-pods-
+      - name: Install pod dependency
+        run: |
+          cd ios
+          bundle exec pod install
+      - name: Build iOS JS Bundle
+        run: |
+          yarn run package-ios
+      - name: Install bundler
+        run: |
+          cd ios
+          gem install bundler
+      - name: Install gem plugins
+        run: |
+          cd ios
+          bundle install
+      - name: Run fastlane
+        run: |
+          cd ios
+          bundle exec fastlane build_testflight
+
+  
