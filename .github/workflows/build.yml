@@ -35,3 +35,24 @@ jobs:
           serviceCredentialsFileContent: ${{ secrets.CREDENTIAL_FILE_CONTENT }}
           groups: testers
           file: android/app/build/outputs/apk/release/app-release.apk
+  build-ios:
+    needs: install-and-test
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Install npm dependencies
+        run: npm install
+      - name: Install CocoaPods
+        run: sudo gem install cocoapods
+      - name: Install Pods
+        run: cd ios && pod install
+      - name: Build iOS Release
+        run: cd ios && xcodebuild -workspace "MyApp.xcworkspace" -scheme "MyApp" -configuration Release -sdk iphoneos -archivePath $PWD/build/MyApp.xcarchive archive
+      - name: Create IPA
+        run: cd ios && xcodebuild -exportArchive -archivePath $PWD/build/MyApp.xcarchive -exportOptionsPlist ExportOptions.plist -exportPath $PWD/build
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-release.ipa
+          path: ios/build/MyApp.ipa
+        
