@@ -1,79 +1,49 @@
-name: react-native-android-build-apk
+name: iOS IPA Build
+
 on:
   push:
     branches:
       - main
+
 jobs:
-  install-and-test:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v3
-      - name: Install npm dependencies
-        run: npm install
-        
-  build-android:
-    needs: install-and-test
-    runs-on: ubuntu-latest
-    steps: 
-      - uses: actions/checkout@v3
-      - name: Install npm dependencies
-        run: npm install
-      - name: Set Gradlew Permissions
-        run: chmod +x android/gradlew
-      - name: Build Android Release
-        run: cd android && ./gradlew clean && ./gradlew assembleRelease
-      - name: Upload Artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: app-release.apk
-          path: android/app/build/outputs/apk/release/
+  build:
+    name: Build iOS IPA
+    runs-on: macos-latest # macOS runner needed to build iOS app
 
-      - name: upload artifact to Firebase App Distribution
-        uses: wzieba/Firebase-Distribution-Github-Action@v1
-        with:
-          appId: ${{secrets.FIREBASE_APP_ID}}
-          serviceCredentialsFileContent: ${{ secrets.CREDENTIAL_FILE_CONTENT }}
-          groups: testers
-          file: android/app/build/outputs/apk/release/app-release.apk
-  ios-build:
-    name: iOS Dev Build
-    runs-on: self-hosted
     steps:
-      - name: Show self-hosted machine infomation
-        run: uname -a
-      - name: Cancel previous runs
-        uses: styfle/cancel-workflow-action@0.9.1
-      - name: Checkout repo from main branch
-        uses: actions/checkout@v3
-        with:
-          ref: main
-      - name: Install npm dependency
-        run: yarn install
-      - name: Cache cocoapods
-        uses: actions/cache@v3
-        with:
-          path: /ios/Pods
-          key: ${{ runner.os }}-pods-${{ hashFiles('**/Podfile.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-pods-
-      - name: Install pod dependency
-        run: |
-          cd ios
-          bundle exec pod install
-      - name: Build iOS JS Bundle
-        run: |
-          yarn run package-ios
-      - name: Install bundler
-        run: |
-          cd ios
-          gem install bundler
-      - name: Install gem plugins
-        run: |
-          cd ios
-          bundle install
-      - name: Run fastlane
-        run: |
-          cd ios
-          bundle exec fastlane build_testflight
+      - name: Checkout source code
+        uses: actions/checkout@v2
 
-  
+      - name: Install Dependencies
+        run: |
+          brew install cocoapods
+          pod install --project-directory=ios # Assuming the iOS project is inside the "ios" folder
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v2
+        with:
+          node-version: '20'
+      - name: Install Node.js dependencies
+        run: npm install
+
+      - name: Build iOS app
+        run: |
+          xcodebuild clean archive \
+          -workspace ios/YourApp.xcworkspace \
+          -scheme YourApp \
+          -configuration Release \
+          -archivePath ${{ github.workspace }}/build/YourApp.xcarchive \
+          -destination 'generic/platform=iOS'
+
+      - name: Export IPA
+        run: |
+          xcodebuild -exportArchive \
+          -archivePath ${{ github.workspace }}/build/YourApp.xcarchive \
+          -exportOptionsPlist ios/exportOptions.plist \
+          -exportPath ${{ github.workspace }}/build
+
+      - name: Upload IPA to Artifacts
+        uses: actions/upload-artifact@v2
+        with:
+          name: YourApp.ipa
+          path: build/YourApp.ipa
