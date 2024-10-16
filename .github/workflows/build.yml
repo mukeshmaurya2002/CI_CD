@@ -1,49 +1,39 @@
-name: iOS IPA Build
-
+name: react-native-android-build-apk
 on:
   push:
     branches:
       - main
-
 jobs:
-  build:
-    name: Build iOS IPA
-    runs-on: macos-latest # macOS runner needed to build iOS app
-
+  install-and-test:
+    runs-on: ubuntu-latest
     steps:
-      - name: Checkout source code
-        uses: actions/checkout@v3
-
-      - name: Install Dependencies
-        run: |
-          brew install cocoapods
-          pod install --project-directory=ios # Assuming the iOS project is inside the "ios" folder
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v2
-        with:
-          node-version: '20'
-      - name: Install Node.js dependencies
+      - uses: actions/checkout@v3
+      - name: Install npm dependencies
         run: npm install
-
-      - name: Build iOS app
-        run: |
-          xcodebuild clean archive \
-          -workspace ios/YourApp.xcworkspace \
-          -scheme YourApp \
-          -configuration Release \
-          -archivePath ${{ github.workspace }}/build/YourApp.xcarchive \
-          -destination 'generic/platform=iOS'
-
-      - name: Export IPA
-        run: |
-          xcodebuild -exportArchive \
-          -archivePath ${{ github.workspace }}/build/YourApp.xcarchive \
-          -exportOptionsPlist ios/exportOptions.plist \
-          -exportPath ${{ github.workspace }}/build
-
-      - name: Upload IPA to Artifacts
+        
+  build-android:
+    needs: install-and-test
+    runs-on: ubuntu-latest
+    steps: 
+      - uses: actions/checkout@v3
+      - name: Install npm dependencies
+        run: npm install
+      - name: Set Gradlew Permissions
+        run: chmod +x android/gradlew
+      - name: Build Android Release
+        run: cd android && ./gradlew clean && ./gradlew assembleRelease
+      - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: YourApp.ipa
-          path: build/YourApp.ipa
+          name: app-release.apk
+          path: android/app/build/outputs/apk/release/
+
+      - name: upload artifact to Firebase App Distribution
+        uses: wzieba/Firebase-Distribution-Github-Action@v1
+        with:
+          appId: ${{secrets.FIREBASE_APP_ID}}
+          serviceCredentialsFileContent: ${{ secrets.CREDENTIAL_FILE_CONTENT }}
+          groups: testers
+          file: android/app/build/outputs/apk/release/app-release.apk
+          
+  
